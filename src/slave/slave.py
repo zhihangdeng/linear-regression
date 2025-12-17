@@ -1,23 +1,56 @@
 import logging
 import time
+import os
+import pandas as pd
 import numpy as np
-
 from multiprocessing import Process
 from src.utils.rabbitmq import get_connection, serialize, deserialize
-from src.utils.constants import BROADCAST_EXCHANGE, RETRIEVAL_QUEUE
-from src.utils.data_loader import load_data
+from src.utils.constants import BROADCAST_EXCHANGE, RETRIEVAL_QUEUE, DATA_DIR
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+DATA_PATH = os.path.join(DATA_DIR, "data.csv")
 
 class Slave(Process):
     def __init__(self, config, id):
         super().__init__()
         self.id = id
         self.config = config
+        self.k = int(config.get("global", "k"))
         self.n = int(config.get("global", "n"))
         self.iteration_limit = int(config.get("global", "iteration_limit"))
-        self.A_i, self.AT_i = load_data(config, self.id)
+        from src.code.rs import RS
+        self.code = RS(n=self.n, k=self.k)
+        if not os.path.exists(DATA_PATH):
+            raise FileNotFoundError(f"Data file not found: {DATA_PATH}")
+    
+        df = pd.read_csv(DATA_PATH)
+        A = df.iloc[:, :-1].values
+
+        rows, cols = A.shape
+        if rows % self.k != 0:
+            rows_to_add = self.k - (rows % self.k)        
+            A = np.vstack([A, np.zeros((rows_to_add, cols))])
+        rows, cols = A.shape
+        if cols % self.k != 0:
+            cols_to_add = self.k - (cols % self.k)
+            A = np.hstack([A, np.zeros((rows, cols_to_add))])
+        rows, cols = A.shape
+
+        AT = A.T
+
+        A_partitions = np.array_split(A, self.k, axis=0)
+        AT_partitions = np.array_split(AT, self.k, axis=0)
+
+        # Generate all n encoded partitions
+        encoded_A = self.code.encode(A_partitions)
+        encoded_AT = self.code.encode(AT_partitions)
+
+        # Keep only the partition corresponding to this slave's ID
+        self.A_i = encoded_A[self.id]
+        self.AT_i = encoded_AT[self.id]
+
         logger.info("Slave node initialized")
 
     def run(self):
@@ -36,14 +69,12 @@ class Slave(Process):
             # 1. Receive x and compute A_i*x
             x = self._wait_for_broadcast(channel, queue_name)
             Ax_i = self.A_i @ x
-            self._send_result(channel, Ax_i)
+            self._send_result(channel, i, 'ax', Ax_i)
 
-            # 2. Receive z and compute A^T_i*z_i
+            # 2. Receive z and compute A^T_i*z
             z = self._wait_for_broadcast(channel, queue_name)
-            # Each slave gets its corresponding slice of z
-            z_i = np.array_split(z, self.n)[self.id]
-            grad_i = self.AT_i @ z_i
-            self._send_result(channel, grad_i)
+            grad_i = self.AT_i @ z
+            self._send_result(channel, i, 'grad', grad_i)
         
         logger.info("Slave %d finished processing.", self.id)
         connection.close()
@@ -53,14 +84,13 @@ class Slave(Process):
         body = None
         while body is None:
             method_frame, _, body = channel.basic_get(queue=queue_name)
-            if body is None:
-                time.sleep(0.01)
-        channel.basic_ack(method_frame.delivery_tag)
-        return deserialize(body)
+            if method_frame:
+                channel.basic_ack(method_frame.delivery_tag)
+                return deserialize(body)
 
-    def _send_result(self, channel, data):
+    def _send_result(self, channel, it, step, data):
         """Sends a result back to the master's retrieval queue."""
-        payload = {'id': self.id, 'data': data}
+        payload = {'it': it, 'id': self.id, 'step': step, 'data': data}
         channel.basic_publish(
             exchange='',
             routing_key=RETRIEVAL_QUEUE,
