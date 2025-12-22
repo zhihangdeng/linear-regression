@@ -20,8 +20,7 @@ class Slave(Process):
         self.k = int(config.get("global", "k"))
         self.n = int(config.get("global", "n"))
         self.iteration_limit = int(config.get("global", "iteration_limit"))
-        from src.code.rs import RS
-        self.code = RS(n=self.n, k=self.k)
+    
         if not os.path.exists(DATA_PATH):
             raise FileNotFoundError(f"Data file not found: {DATA_PATH}")
     
@@ -38,12 +37,12 @@ class Slave(Process):
             A = np.hstack([A, np.zeros((rows, cols_to_add))])
         rows, cols = A.shape
 
-        AT = A.T
-
         A_partitions = np.array_split(A, self.k, axis=0)
-        AT_partitions = np.array_split(AT, self.k, axis=0)
+        AT_partitions = np.array_split(A.T, self.k, axis=0)
 
         # Generate all n encoded partitions
+        from src.code.shift_and_add import ShiftAndAdd
+        self.code = ShiftAndAdd(n=self.n, k=self.k)
         encoded_A = self.code.encode(A_partitions)
         encoded_AT = self.code.encode(AT_partitions)
 

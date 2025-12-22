@@ -42,8 +42,8 @@ class RS(Code):
             raise ValueError(f"Need at least {self.k} results to decode, but got {len(results)}")
 
         # Get the slave IDs and the data from the fastest k slaves
-        slave_ids = [res['id'] for res in results]
-        received_data = [res['data'] for res in results]
+        slave_ids = list(results.keys())
+        received_data = list(results.values())
 
         # Construct the k x k decoding matrix from the corresponding rows of the original encoding matrix
         decoding_matrix = self.encoding_matrix[slave_ids, :]
