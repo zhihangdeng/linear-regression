@@ -1,35 +1,40 @@
 import numpy as np
 from src.code.shift_and_add import ShiftAndAdd
 
-A=np.random.randint(0, 10, (18, 5))
+np.set_printoptions(precision=16, suppress=False)
 
-code = ShiftAndAdd(n=9, k=6)
+# 参数设置
+num_iterations = 500  # 迭代次数
+mse_list = []  # 存储每次迭代的 MSE
 
-partitions = np.array_split(A, 6, axis=0)
+for iteration in range(num_iterations):
+    print(f"\nIteration {iteration + 1}/{num_iterations}")
 
-print("Original Partitions:")
-for i, part in enumerate(partitions):
-    print(f"Partition {i}:")
-    print(part)
+    # 生成随机数据
+    A = np.random.rand(12, 4)
+    A = np.hstack([A, -np.sum(A, axis=1, keepdims=True)])
 
-encoded_partitions = code.encode(partitions)
+    code = ShiftAndAdd(n=9, k=6)
+    partitions = np.array_split(A, 6, axis=0)
 
-print("\nEncoded Partitions:")
-for i, part in enumerate(encoded_partitions):
-    print(f"Partition {i}:")
-    print(part)
+    # 编码
+    encoded_partitions = code.encode(partitions)
 
-# Simulate results from slaves (here we just use the encoded partitions as results)
-results = {i: encoded_partitions[i] for i in range(9) if i != 0 and i != 2}
+    # 模拟从 slaves 接收到的结果
+    results = {i: encoded_partitions[i] for i in range(9) if i != 0 and i != 2 and i != 7}
 
-print("\nResults received from slaves:")
-for i in results:
-    print(f"Slave {i}:")
-    print(results[i])
+    # 解码
+    decoded_partitions = code.decode(results)
 
-decoded_partitions = code.decode(results)
+    # 计算当前迭代的 MSE
+    mse = 0
+    for original, decoded in zip(partitions, decoded_partitions):
+        mse += np.mean((original - decoded) ** 2)
+    mse /= len(partitions)
 
-print("\nDecoded Partitions:")
-for i, part in enumerate(decoded_partitions):
-    print(f"Partition {i}:")
-    print(part)
+    print(f"Mean Squared Error (MSE) for iteration {iteration + 1}: {mse}")
+    mse_list.append(mse)
+
+# 计算多次迭代的平均 MSE
+average_mse = np.mean(mse_list)
+print(f"\nAverage Mean Squared Error (MSE) over {num_iterations} iterations: {average_mse}")

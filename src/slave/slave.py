@@ -32,9 +32,10 @@ class Slave(Process):
             rows_to_add = self.k - (rows % self.k)        
             A = np.vstack([A, np.zeros((rows_to_add, cols))])
         rows, cols = A.shape
-        if cols % self.k != 0:
-            cols_to_add = self.k - (cols % self.k)
+        if (cols + 1) % self.k != 0:
+            cols_to_add = self.k - ((cols + 1) % self.k)
             A = np.hstack([A, np.zeros((rows, cols_to_add))])
+        A = np.hstack([A, -np.sum(A, axis=1, keepdims=True)])
         rows, cols = A.shape
 
         A_partitions = np.array_split(A, self.k, axis=0)
@@ -51,6 +52,7 @@ class Slave(Process):
         self.AT_i = encoded_AT[self.id]
 
         logger.info("Slave node initialized")
+
 
     def run(self):
         logger.info("Slave node %d started", self.id)

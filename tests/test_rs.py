@@ -1,30 +1,54 @@
 import numpy as np
 from src.code.rs import RS
 
-A=np.random.rand(12, 4)
+np.set_printoptions(precision=16, suppress=False)
 
-code = RS(n=9, k=6)
+# 参数设置
+num_iterations = 500  # 迭代次数
+mse_list = []  # 存储每次迭代的 MSE
 
-partitions = np.array_split(A, 6, axis=0)
+for iteration in range(num_iterations):
+    print(f"\nIteration {iteration + 1}/{num_iterations}")
 
-print("Original Partitions:")
-for i, part in enumerate(partitions):
-    print(f"Partition {i}:")
-    print(part)
-    
-encoded_partitions = code.encode(partitions)
+    # 生成随机数据
+    A = np.random.rand(12, 4)
 
-print("\nEncoded Partitions:")
-for i, part in enumerate(encoded_partitions):
-    print(f"Partition {i}:")
-    print(part)
+    code = RS(n=9, k=6)
 
-# Simulate results from slaves (here we just use the encoded partitions as results)
-results = {i: encoded_partitions[i] for i in range(9) if i != 6 and i != 1 and i != 2}  # Simulate that slave 6 and 1 failed
+    partitions = np.array_split(A, 6, axis=0)
 
-decoded_partitions = code.decode(results)
+    print("Original Partitions:")
+    for i, part in enumerate(partitions):
+        print(f"Partition {i}:")
+        print(part)
 
-print("\nDecoded Partitions:")
-for i, part in enumerate(decoded_partitions):
-    print(f"Partition {i}:")
-    print(part)
+    encoded_partitions = code.encode(partitions)
+
+    print("\nEncoded Partitions:")
+    for i, part in enumerate(encoded_partitions):
+        print(f"Partition {i}:")
+        print(part)
+
+    # 模拟从 slaves 接收到的结果
+    results = {i: encoded_partitions[i] for i in range(9) if i != 0 and i != 2 and i != 7}
+
+
+    decoded_partitions = code.decode(results)
+
+    print("\nDecoded Partitions:")
+    for i, part in enumerate(decoded_partitions):
+        print(f"Partition {i}:")
+        print(part)
+
+    # 计算当前迭代的 MSE
+    mse = 0  # 初始化均方误差
+    for original, decoded in zip(partitions, decoded_partitions):
+        mse += np.mean((original - decoded) ** 2)  # 计算每个分区的均方误差
+
+    mse /= len(partitions)  # 取均值
+    print(f"Mean Squared Error (MSE) for iteration {iteration + 1}: {mse}")
+    mse_list.append(mse)
+
+# 计算多次迭代的平均 MSE
+average_mse = np.mean(mse_list)
+print(f"\nAverage Mean Squared Error (MSE) over {num_iterations} iterations: {average_mse}")

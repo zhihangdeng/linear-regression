@@ -28,10 +28,22 @@ class Master(Process):
             raise FileNotFoundError(f"Data file not found: {DATA_PATH}")
 
         df = pd.read_csv(DATA_PATH)
+        A = df.iloc[:, :-1].values
+
+        rows, cols = A.shape
+        if rows % self.k != 0:
+            rows_to_add = self.k - (rows % self.k)        
+            A = np.vstack([A, np.zeros((rows_to_add, cols))])
+        rows, cols = A.shape
+        if (cols + 1) % self.k != 0:
+            cols_to_add = self.k - ((cols + 1) % self.k)
+            A = np.hstack([A, np.zeros((rows, cols_to_add))])
+        A = np.hstack([A, -np.sum(A, axis=1, keepdims=True)])
+        rows, cols = A.shape
+
         self.y = df.iloc[:, -1:].values
 
-        m = int(config.get("global", "features"))
-        self.x = np.zeros((m, 1))
+        self.x = np.zeros((cols, 1))
 
         from src.code.shift_and_add import ShiftAndAdd
         self.code = ShiftAndAdd(n=self.n, k=self.k)
@@ -60,6 +72,8 @@ class Master(Process):
 
             # 2. Collect A_i*x and compute z = Ax - y
             results = self._collect_k_results(channel, i, 'ax')
+            print(results.keys())
+            print(results[1].shape)
             Ax_parts = self.code.decode(results)
             Ax = np.vstack(Ax_parts)
 
