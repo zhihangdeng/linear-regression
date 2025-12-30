@@ -32,10 +32,10 @@ class Slave(Process):
             rows_to_add = self.k - (rows % self.k)        
             A = np.vstack([A, np.zeros((rows_to_add, cols))])
         rows, cols = A.shape
-        if (cols + 1) % self.k != 0:
-            cols_to_add = self.k - ((cols + 1) % self.k)
+        if cols % self.k != 0:
+            cols_to_add = self.k - (cols % self.k)
             A = np.hstack([A, np.zeros((rows, cols_to_add))])
-        A = np.hstack([A, -np.sum(A, axis=1, keepdims=True)])
+
         rows, cols = A.shape
 
         A_partitions = np.array_split(A, self.k, axis=0)
@@ -69,6 +69,7 @@ class Slave(Process):
         for i in range(self.iteration_limit):
             # 1. Receive x and compute A_i*x
             x = self._wait_for_broadcast(channel, queue_name)
+
             Ax_i = self.A_i @ x
             self._send_result(channel, i, 'ax', Ax_i)
 

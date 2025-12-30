@@ -35,13 +35,13 @@ class Master(Process):
             rows_to_add = self.k - (rows % self.k)        
             A = np.vstack([A, np.zeros((rows_to_add, cols))])
         rows, cols = A.shape
-        if (cols + 1) % self.k != 0:
-            cols_to_add = self.k - ((cols + 1) % self.k)
+        if cols % self.k != 0:
+            cols_to_add = self.k - (cols % self.k)
             A = np.hstack([A, np.zeros((rows, cols_to_add))])
-        A = np.hstack([A, -np.sum(A, axis=1, keepdims=True)])
         rows, cols = A.shape
 
         self.y = df.iloc[:, -1:].values
+
 
         self.x = np.zeros((cols, 1))
 
@@ -72,8 +72,6 @@ class Master(Process):
 
             # 2. Collect A_i*x and compute z = Ax - y
             results = self._collect_k_results(channel, i, 'ax')
-            print(results.keys())
-            print(results[1].shape)
             Ax_parts = self.code.decode(results)
             Ax = np.vstack(Ax_parts)
 
